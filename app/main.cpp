@@ -1,7 +1,5 @@
 #include <Camera.h>
 
-#include <MvCameraControl.h>
-
 #include <iostream>
 
 int main()
@@ -16,9 +14,10 @@ int main()
     if (photo.empty())
     {
         std::cout << "Failed to capture photo." << std::endl;
+        cam.close();
         return -1;
     }
-    cv ::imshow("Camera",photo);
+    cv ::imshow("Camera", photo);
     cv::waitKey(0);
     cam.close();
     return 0;

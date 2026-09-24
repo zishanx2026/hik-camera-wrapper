@@ -17,6 +17,7 @@ Camera::~Camera()
 {
     close();
 }
+
 // 设置最佳包大小
 bool Camera::set_optimal_packet_size(MV_CC_DEVICE_INFO*DeviceInfo, void *handle)
 {
@@ -46,33 +47,9 @@ bool Camera::set_optimal_packet_size(MV_CC_DEVICE_INFO*DeviceInfo, void *handle)
             return false;
         }
     }
+    return false;
 }
-/*
-bool Camera::set_optimal_packet_size()
-{
-    if (!m_is_open || m_handle == nullptr)
-    {
-        std::cerr << "Camera is not open or handle is null!" << std::endl;
-        return false;
-    }
 
-    int nPacketSize = MV_CC_GetOptimalPacketSize(m_handle);
-    if (nPacketSize > 0)
-    {
-        int ret_set = MV_CC_SetIntValue(m_handle, "GevSCPSPacketSize", nPacketSize);
-        if (ret_set != MV_OK)
-        {
-            std::cerr << "Set Packet Size fail! :" << ret_set << std::endl;
-            return false;
-        }
-        return true;
-    }
-    else
-    {
-        std::cerr << "Get Optimal Packet Size fail! :" << nPacketSize << std::endl;
-        return false;
-    }
-}*/
 // 关闭相机句柄
 void Camera::close_handle()
 {
@@ -86,6 +63,7 @@ void Camera::close_handle()
         m_handle = nullptr;
     }
 }
+
 bool  Camera::open(int camera_index)
 {
     // 初始化句柄为空,防止野指针
@@ -175,7 +153,7 @@ cv::Mat Camera::getframe()
      } 
     MV_FRAME_OUT PhotoFrame = {0};
     int ret_buffer = MV_CC_GetImageBuffer(m_handle, &PhotoFrame, 1000);
-    if (ret_buffer != MV_OK || PhotoFrame.pBuf == nullptr)
+    if (ret_buffer != MV_OK || PhotoFrame.pBufAddr == nullptr)
     {
         std::cerr << "Get Image fail! :" << ret_buffer << std::endl;
         return cv::Mat();

@@ -1,5 +1,8 @@
 #pragma once
+
 #include <opencv2/opencv.hpp>
+
+#include <MvCameraControl.h>
 
 class Camera
 {
@@ -16,4 +19,4 @@ class Camera
         bool open(int m_camera_index);
         cv::Mat getframe();
         void close();
-}
+};
