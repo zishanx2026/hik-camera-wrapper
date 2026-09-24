@@ -66,13 +66,6 @@ void Camera::close_handle()
 
 bool  Camera::open(int camera_index)
 {
-    m_camera_index = camera_index;
-    // 检查相机索引是否超出范围
-    if (m_camera_index >= stDeviceList.nDeviceNum)
-    {
-        std::cerr << "Camera index out of range!" << std::endl;
-        return false;
-    }
     // 初始化句柄为空,防止野指针
     m_handle = nullptr;
     // 检查相机状态，避免重复开机
@@ -89,7 +82,13 @@ bool  Camera::open(int camera_index)
         std::cout << "Enum Devices fail! :" << ret_enum << std::endl;
         return false;
     }
-    
+    m_camera_index = camera_index;
+    // 检查相机索引是否超出范围
+    if (m_camera_index >= stDeviceList.nDeviceNum)
+    {
+        std::cerr << "Camera index out of range!" << std::endl;
+        return false;
+    }
     MV_CC_DEVICE_INFO*selected_device = stDeviceList.pDeviceInfo[m_camera_index];
     // 检查设备是否可访问
     if (!MV_CC_IsDeviceAccessible(selected_device, MV_ACCESS_Exclusive))
