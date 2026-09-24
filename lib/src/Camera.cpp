@@ -21,7 +21,7 @@ Camera::~Camera()
 // 设置最佳包大小
 bool Camera::set_optimal_packet_size(MV_CC_DEVICE_INFO*DeviceInfo, void *handle)
 {
-    if(m_handle == nullptr || !m_is_open)
+    if(m_handle == nullptr)
     {
         std::cerr << "Camera is not open or handle is null!" << std::endl;
         return false;
@@ -66,6 +66,13 @@ void Camera::close_handle()
 
 bool  Camera::open(int camera_index)
 {
+    m_camera_index = camera_index;
+    // 检查相机索引是否超出范围
+    if (m_camera_index >= stDeviceList.nDeviceNum)
+    {
+        std::cerr << "Camera index out of range!" << std::endl;
+        return false;
+    }
     // 初始化句柄为空,防止野指针
     m_handle = nullptr;
     // 检查相机状态，避免重复开机
@@ -76,7 +83,7 @@ bool  Camera::open(int camera_index)
     }
 
     MV_CC_DEVICE_INFO_LIST stDeviceList = {0};
-    int ret_enum = MV_CC_EnumDevices(MV_GIGE_DEVICE , &stDeviceList);
+    int ret_enum = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &stDeviceList);
     if (ret_enum != MV_OK)
     {
         std::cout << "Enum Devices fail! :" << ret_enum << std::endl;
@@ -116,7 +123,10 @@ bool  Camera::open(int camera_index)
         return false;
     }
     //网络设置最佳包大小
-    set_optimal_packet_size(&CameraDeviceInfo,m_handle);
+    if (!set_optimal_packet_size(&CameraDeviceInfo,m_handle))
+    {
+        std::cerr << "Warning: Set optimal packet size failed!" << std::endl;
+    }
     // 设置触发模式为连续采集
     int ret_trigger = MV_CC_SetEnumValue(m_handle, "TriggerMode", 0);
     if (ret_trigger != MV_OK)
@@ -133,6 +143,14 @@ bool  Camera::open(int camera_index)
         std::cerr << "Set Pixel Format fail! :" << ret_set << std::endl;
         return false;
     }
+    // 设置曝光时间为 50000 微秒（50毫秒），没有这个看不到图像
+    int ret_exp = MV_CC_SetFloatValue(m_handle, "ExposureTime", 50000.0);
+    if (ret_exp != MV_OK)
+    {
+        close_handle();
+        std::cerr << "Set Exposure Time fail! :" << ret_exp << std::endl;
+        return false;
+    }
     int ret_start = MV_CC_StartGrabbing(m_handle);
     if (ret_start != MV_OK)
     {
@@ -144,27 +162,30 @@ bool  Camera::open(int camera_index)
     return true;
 }
 
-cv::Mat Camera::getframe()
+bool Camera::getframe(cv::Mat& frame, int& error_code)
 {
     if (!m_is_open || m_handle == nullptr)
-     {
-         std::cerr << "Camera is not open or handle is null!" << std::endl;
-         return cv::Mat();
-     } 
-    MV_FRAME_OUT PhotoFrame = {0};
-    int ret_buffer = MV_CC_GetImageBuffer(m_handle, &PhotoFrame, 1000);
-    if (ret_buffer != MV_OK || PhotoFrame.pBufAddr == nullptr)
     {
+        error_code = -1;
+        std::cerr << "Camera is not open or handle is null!" << std::endl;
+        return false;
+    } 
+    MV_FRAME_OUT photo_frame = {0};
+    int ret_buffer = MV_CC_GetImageBuffer(m_handle, &photo_frame, 1000);
+    if (ret_buffer != MV_OK || photo_frame.pBufAddr == nullptr)
+    {
+        error_code = ret_buffer;
         std::cerr << "Get Image fail! :" << ret_buffer << std::endl;
-        return cv::Mat();
+        return false;
     }
     // 将获取的图像数据转换为OpenCV的Mat格式
-    MV_FRAME_OUT_INFO_EX PhotoInfo = PhotoFrame.stFrameInfo;
-    cv::Mat frame(PhotoInfo.nHeight, PhotoInfo.nWidth, CV_8UC1, static_cast<void*>(PhotoFrame.pBufAddr));
+    MV_FRAME_OUT_INFO_EX PhotoInfo = photo_frame.stFrameInfo;
+    cv::Mat frame_first(PhotoInfo.nHeight, PhotoInfo.nWidth, CV_8UC1, static_cast<void*>(photo_frame.pBufAddr));
     // 清除缓存区
-    cv::Mat frame_copy = frame.clone(); 
-    MV_CC_FreeImageBuffer(m_handle, &PhotoFrame);
-    return frame_copy;
+    frame = frame_first.clone(); 
+    error_code = 0;
+    MV_CC_FreeImageBuffer(m_handle, &photo_frame);
+    return true;
 }
 
 void Camera::close()

@@ -16,7 +16,9 @@ class Camera
     public:
         Camera();
         ~Camera();
+        Camera(const Camera&) = delete;
+        Camera& operator=(const Camera&) = delete;
         bool open(int m_camera_index);
-        cv::Mat getframe();
+        bool getframe();
         void close();
 };
