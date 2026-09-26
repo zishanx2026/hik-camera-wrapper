@@ -19,7 +19,7 @@ Camera::~Camera()
 }
 
 // 设置最佳包大小
-bool Camera::set_optimal_packet_size(MV_CC_DEVICE_INFO*DeviceInfo, void *handle)
+bool Camera::set_optimal_packet_size(MV_CC_DEVICE_INFO*DeviceInfo)
 {
     if(m_handle == nullptr)
     {
@@ -29,11 +29,11 @@ bool Camera::set_optimal_packet_size(MV_CC_DEVICE_INFO*DeviceInfo, void *handle)
     // 是否为GigE相机
     if(DeviceInfo->nTLayerType == MV_GIGE_DEVICE)
     {
-        int ret_size = MV_CC_GetOptimalPacketSize(handle);
+        int ret_size = MV_CC_GetOptimalPacketSize(m_handle);
         m_packet_size = static_cast<unsigned int>(ret_size);
         if (m_packet_size > 0)
         {
-            int ret_set = MV_CC_SetIntValue(handle, "GevSCPSPacketSize", m_packet_size);
+            int ret_set = MV_CC_SetIntValue(m_handle, "GevSCPSPacketSize", m_packet_size);
             if (ret_set != MV_OK)
             {
                 std::cerr << "Set Packet Size fail! :" << ret_set << std::endl;
@@ -122,7 +122,7 @@ bool  Camera::open(int camera_index)
         return false;
     }
     //网络设置最佳包大小
-    if (!set_optimal_packet_size(&CameraDeviceInfo,m_handle))
+    if (!set_optimal_packet_size(&CameraDeviceInfo))
     {
         std::cerr << "Warning: Set optimal packet size failed!" << std::endl;
     }
@@ -142,14 +142,7 @@ bool  Camera::open(int camera_index)
         std::cerr << "Set Pixel Format fail! :" << ret_set << std::endl;
         return false;
     }
-    // 设置曝光时间为 50000 微秒（50毫秒），没有这个看不到图像
-    int ret_exp = MV_CC_SetFloatValue(m_handle, "ExposureTime", 50000.0);
-    if (ret_exp != MV_OK)
-    {
-        close_handle();
-        std::cerr << "Set Exposure Time fail! :" << ret_exp << std::endl;
-        return false;
-    }
+    
     int ret_start = MV_CC_StartGrabbing(m_handle);
     if (ret_start != MV_OK)
     {
@@ -158,6 +151,90 @@ bool  Camera::open(int camera_index)
         return false;
     }
     m_is_open = true;
+    return true;
+}
+
+// 设置曝光
+bool Camera::set_exposure_time(float exposure_time, int& error_code)
+{
+    if (!m_is_open || m_handle == nullptr)
+    {
+        error_code = -1;
+        std::cerr << "Camera is not open or handle is null!" << std::endl;
+        return false;
+    }
+    int ret_exposure = MV_CC_SetFloatValue(m_handle, "ExposureTime", exposure_time);
+    if (ret_exposure != MV_OK)
+    {
+        error_code = ret_exposure;
+        close_handle();
+        std::cerr << "Set Exposure Time fail! :" << ret_exposure << std::endl;
+        return false;
+    }
+    error_code = 0;
+    return true;
+}
+
+// 设置增益
+bool Camera::set_gain(float gain_db, int& error_code)
+{
+    if (!m_is_open || m_handle == nullptr)
+    {
+        error_code = -1;
+        std::cerr << "Camera is not open or handle is null!" << std::endl;
+        return false;
+    }
+    int ret_gain = MV_CC_SetFloatValue(m_handle, "Gain", gain_db);
+    if (ret_gain != MV_OK)
+    {
+        error_code = ret_gain;
+        close_handle();
+        std::cerr << "Set Gain fail! :" << ret_gain << std::endl;
+        return false;
+    }
+    error_code = 0;
+    return true;
+}
+
+// 设置自动增益
+bool Camera::set_auto_exposure(bool able, int& error_code)
+{
+    if (!m_is_open || m_handle == nullptr)
+    {
+        error_code = -1;
+        std::cerr << "Camera is not open or handle is null!" << std::endl;
+        return false;
+    }
+    int ret_auto_exposure = MV_CC_SetEnumValue(m_handle, "ExposureAuto", able ? 2 : 0);
+    if (ret_auto_exposure != MV_OK)
+    {
+        error_code = ret_auto_exposure;
+        close_handle();
+        std::cerr << "Set Auto Exposure fail! :" << ret_auto_exposure << std::endl;
+        return false;
+    }
+    error_code = 0;
+    return true;
+}
+
+//
+bool Camera::set_white_balance_auto(bool able, int& error_code)
+{
+    if (!m_is_open || m_handle == nullptr)
+    {
+        error_code = -1;
+        std::cerr << "Camera is not open or handle is null!" << std::endl;
+        return false;
+    }
+    int ret_white = MV_CC_SetEnumValue(m_handle, "BalanceWhiteAuto", able ? 2 : 0);
+    if (ret_white != MV_OK)
+    {
+        error_code = ret_white;
+        close_handle();
+        std::cerr << "Set Auto White Balance fail! :" << ret_white << std::endl;
+        return false;
+    }
+    error_code = 0;
     return true;
 }
 
