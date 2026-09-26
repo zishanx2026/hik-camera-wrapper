@@ -74,7 +74,12 @@ bool  Camera::open(int camera_index)
         std::cout << "Device Is Powered-on!" << std::endl;
         return false;
     }
-
+    int ret_initial = MC_CC_Initialize()
+    if (ret_initial != MV_OK)
+    {
+        std::cout << "initiallize fail" << std::endl;
+        return false;
+    }
     MV_CC_DEVICE_INFO_LIST stDeviceList = {0};
     int ret_enum = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &stDeviceList);
     if (ret_enum != MV_OK)
@@ -280,7 +285,14 @@ void Camera::close()
     if (ret_close != MV_OK)
     {
         std::cerr << "Close Device fail! :" << ret_close << std::endl;
+        return;
     }
     close_handle();
+    int ret_final = MV_CC_Finalize();
+    if (ret_final != MV_OK)
+    {
+        std::cerr << "Ending Fail !:" << ret_final << std::endl;
+        return;
+    }
     m_is_open = false;
 }
