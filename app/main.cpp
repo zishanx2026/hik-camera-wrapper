@@ -1,15 +1,11 @@
 #include <Camera.h>
-
+#include <sdk.h>
+#include <opencv2/opencv.hpp>
 #include <iostream>
 
 int main()
 {
-    int ret_initial = MV_CC_Initialize();
-    if (ret_initial != MV_OK)
-    {
-        std::cout << "initialize fail" << std::endl;
-        return -1;
-    }
+    Sdk& sdk = Sdk::instance();
     Camera cam;
     if (!cam.scan())
     {
@@ -21,9 +17,7 @@ int main()
         std::cout << "Failed to open camera." << std::endl;
         return -1;
     }
-    cam.set_optimal_packet_size();
-    cam.set_triggermode();
-    cam.set_pixelformat();
+    cam.set();
     cam.start_grab();
     // 如果开启了自动曝光那么手动曝光就会失效
     std::cout << "是否开启自动曝光?  answer:true or false ." << std::endl;
@@ -69,9 +63,7 @@ int main()
             if (cam.scan() && cam.connect()) 
             {
                 // 4. 重新配置参数并开始采集
-                cam.set_optimal_packet_size();
-                cam.set_triggermode();
-                cam.set_pixelformat();
+                cam.set();
                 cam.start_grab();
                 std::cout << "Reconnected successfully!" << std::endl;
             }
@@ -100,6 +92,6 @@ int main()
         }
     }
     cam.close();
-    MV_CC_Finalize();
+    sdk.release();
     return 0;
 }

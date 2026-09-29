@@ -92,7 +92,7 @@ bool Camera::scan()
 
     if (nRet != MV_OK)
     {
-        PrintError("EnumDevicesEx2", nRet);
+        printerror("EnumDevicesEx2", static_cast<unsigned int>(nRet));
         return false;
     }
 
@@ -282,7 +282,15 @@ void Camera::close()
     m_is_open = false;
 }
 
-void Camera::printerror(const std::string& step, int nRet)
+bool Camera::set()
+{
+    if (!set_pixelformat()) return false;
+    if (!set_triggermode()) return false;
+    if (!set_optimal_packet_size()) return false;
+    return true;
+}
+
+void Camera::printerror(const std::string& step, unsigned int nRet)
 {
     std::cerr << "[" << step << "] Failed! Ret: 0x" 
               << std::hex << nRet << std::dec;
