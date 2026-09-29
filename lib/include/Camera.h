@@ -12,6 +12,7 @@ class Camera
         int m_camera_index;
         unsigned int m_packet_size;
         MV_CC_DEVICE_INFO_LIST m_stDeviceList;
+        void Camera::printerror(const std::string& step, int nRet);
         bool check();
         void close_handle();
     public:

@@ -22,35 +22,32 @@ Camera::~Camera()
 // 设置最佳包大小
 bool Camera::set_optimal_packet_size()
 {
+    int nRet = MV_OK;
     if (!check())return false;
     MV_CC_DEVICE_INFO CameraDeviceInfo = {0};
     // 获取设备信息
-    int ret_get = MV_CC_GetDeviceInfo(m_handle, &CameraDeviceInfo);
-    if (ret_get != MV_OK)
+    nRet = MV_CC_GetDeviceInfo(m_handle, &CameraDeviceInfo);
+    if (nRet != MV_OK) 
     {
-        std::cerr << "Get Device Info fail! :" << ret_get << std::endl;
+        printerror("Getdeviceinfo", nRet);
         return false;
     }
     // 是否为GigE相机
     if(CameraDeviceInfo.nTLayerType == MV_GIGE_DEVICE)
     {
-        int ret_size = MV_CC_GetOptimalPacketSize(m_handle);
-        if (ret_size <= 0)
+        nRet = MV_CC_GetOptimalPacketSize(m_handle);
+        if (nRet <= 0)
         {
-            std::cerr << "Get Optimal Packet Size fail! :" << ret_size << std::endl;
+            printerror("Get Optimal Packet Size", nRet);
             return false;
         }
-        m_packet_size = static_cast<unsigned int>(ret_size);
-        int ret_set = MV_CC_SetIntValue(m_handle, "GevSCPSPacketSize", m_packet_size);
-        if (ret_set != MV_OK)
+        m_packet_size = static_cast<unsigned int>(nRet);
+        nRet = MV_CC_SetIntValue(m_handle, "GevSCPSPacketSize", m_packet_size);
+        if (nRet != MV_OK)
         {
-            std::cerr << "Set Packet Size fail! :" << ret_set << std::endl;
+            printerror("Set Packet Size", nRet);
             return false;
         }
-    }
-    if (CameraDeviceInfo.nTLayerType != MV_GIGE_DEVICE) 
-    {
-        return true; 
     }
     return true;
 }
@@ -60,11 +57,8 @@ void Camera::close_handle()
 {
     if (m_handle != nullptr)
     {
-        int ret_destroy = MV_CC_DestroyHandle(m_handle);
-        if (ret_destroy != MV_OK)
-        {
-            std::cerr << "Destroy Handle fail! :" << ret_destroy << std::endl;
-        }
+        int nRet = MV_CC_DestroyHandle(m_handle);
+        if (nRet != MV_OK) printerror("Destroy Handle", nRet);
         m_handle = nullptr;
     }
 }
@@ -84,12 +78,25 @@ bool Camera::check()
 
 bool Camera::scan()
 {
-    int ret_enum = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_stDeviceList);
-    if (ret_enum != MV_OK)
+    if (m_handle != nullptr)close_handle(); 
+    // 加快扫描速度
+    MV_GIGE_SetEnumDevTimeout(50);
+
+    // 带排序的枚举（按序列号，保证多相机稳定性）
+    int nRet = MV_CC_EnumDevicesEx2(
+        MV_GIGE_DEVICE | MV_USB_DEVICE,   // 想同时支持网口和USB
+        &m_stDeviceList,
+        nullptr,                           // 不需要按IP排序
+        SortMethod_SerialNumber            // 按序列号排序
+    );
+
+    if (nRet != MV_OK)
     {
-        std::cout << "Enum Devices fail! :" << ret_enum << std::endl;
+        PrintError("EnumDevicesEx2", nRet);
         return false;
     }
+
+    std::cout << "Found " << m_stDeviceList.nDeviceNum << " camera(s)." << std::endl;
     return true;
 }
 bool Camera::connect()
@@ -110,6 +117,7 @@ bool Camera::connect()
         std::cerr << "Camera index out of range!" << std::endl;
         return false;
     }
+    int nRet = MV_OK;
     MV_CC_DEVICE_INFO*selected_device = m_stDeviceList.pDeviceInfo[m_camera_index];
     // 检查设备是否可访问
     if (!MV_CC_IsDeviceAccessible(selected_device, MV_ACCESS_Exclusive))
@@ -117,16 +125,17 @@ bool Camera::connect()
         std::cout << "Device is not accessible! :" << std::endl;
         return false;
     } 
-    int ret_create = MV_CC_CreateHandle(&m_handle, m_stDeviceList.pDeviceInfo[m_camera_index]);
-    if (ret_create !=MV_OK)
+    nRet = MV_CC_CreateHandle(&m_handle, m_stDeviceList.pDeviceInfo[m_camera_index]);
+    if (nRet !=MV_OK)
     {
-        std::cout << "Create Handle fail! :" << ret_create << std::endl;
+        printerror("Create Handle", nRet);
         return false;
     }
-    int ret_open = MV_CC_OpenDevice(m_handle,MV_ACCESS_Exclusive,0);
+    nRet = MV_CC_OpenDevice(m_handle,MV_ACCESS_Exclusive,0);
     // 检查设备是否打开成功
-    if (ret_open !=MV_OK)
+    if (nRet !=MV_OK)
     {
+        printerror("OpenDevice", nRet);
         close_handle();
         return false;
     }
@@ -138,10 +147,11 @@ bool Camera::connect()
 bool Camera::set_triggermode()
 {
     if (!check())return false;
-    int ret_trigger = MV_CC_SetEnumValue(m_handle, "TriggerMode", 0);
-    if (ret_trigger != MV_OK)
+    int nRet = MV_OK;
+    nRet = MV_CC_SetEnumValue(m_handle, "TriggerMode", 0);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Set Trigger Mode fail! :" << ret_trigger << std::endl;
+        printerror("Trigger Mode", nRet);
         return false;
     }
     return true;
@@ -151,10 +161,11 @@ bool Camera::set_triggermode()
 bool Camera::set_pixelformat()
 {
     if (!check())return false;
-    int ret_set = MV_CC_SetEnumValue(m_handle, "PixelFormat", PixelType_Gvsp_Mono8);
-    if (ret_set != MV_OK)
+    int nRet = MV_OK;
+    nRet = MV_CC_SetEnumValue(m_handle, "PixelFormat", PixelType_Gvsp_Mono8);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Set Pixel Format fail! :" << ret_set << std::endl;
+        printerror("PixelFormat", nRet);
         return false;
     }
     return true;
@@ -164,10 +175,11 @@ bool Camera::set_pixelformat()
 bool Camera::set_exposure_time(float exposure_time)
 {
     if (!check())return false;
-    int ret_exposure = MV_CC_SetFloatValue(m_handle, "ExposureTime", exposure_time);
-    if (ret_exposure != MV_OK)
+    int nRet = MV_OK;
+    nRet = MV_CC_SetFloatValue(m_handle, "ExposureTime", exposure_time);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Set Exposure Time fail! :" << ret_exposure << std::endl;
+        printerror("Set Exposure Time", nRet);
         return false;
     }
     return true;
@@ -177,10 +189,11 @@ bool Camera::set_exposure_time(float exposure_time)
 bool Camera::set_gain(float gain_db)
 {
     if (!check())return false;
-    int ret_gain = MV_CC_SetFloatValue(m_handle, "Gain", gain_db);
-    if (ret_gain != MV_OK)
+    int nRet = MV_OK;
+    nRet = MV_CC_SetFloatValue(m_handle, "Gain", gain_db);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Set Gain fail! :" << ret_gain << std::endl;
+        printerror("Set Gain", nRet);
         return false;
     }
     return true;
@@ -190,10 +203,11 @@ bool Camera::set_gain(float gain_db)
 bool Camera::set_auto_exposure(bool able)
 {
     if (!check())return false;
-    int ret_auto_exposure = MV_CC_SetEnumValue(m_handle, "ExposureAuto", able ? 2 : 0);
-    if (ret_auto_exposure != MV_OK)
+    int nRet = MV_OK;
+    nRet = MV_CC_SetEnumValue(m_handle, "ExposureAuto", able ? 2 : 0);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Set Auto Exposure fail! :" << ret_auto_exposure << std::endl;
+        printerror("Set Auto Exposure", nRet);
         return false;
     }
     return true;
@@ -203,10 +217,11 @@ bool Camera::set_auto_exposure(bool able)
 bool Camera::set_white_balance_auto(bool able)
 {
     if (!check())return false;
-    int ret_white = MV_CC_SetEnumValue(m_handle, "BalanceWhiteAuto", able ? 2 : 0);
-    if (ret_white != MV_OK)
+    int nRet = MV_OK;
+    nRet = MV_CC_SetEnumValue(m_handle, "BalanceWhiteAuto", able ? 2 : 0);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Set Auto White Balance fail! :" << ret_white << std::endl;
+        printerror("Set Auto White Balance", nRet);
         return false;
     }
     return true;
@@ -214,11 +229,12 @@ bool Camera::set_white_balance_auto(bool able)
 
 bool Camera::start_grab()
 {
+    int nRet = MV_OK;
     if (!check())return false;
-    int ret_start = MV_CC_StartGrabbing(m_handle);
-    if (ret_start != MV_OK)
+    nRet = MV_CC_StartGrabbing(m_handle);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Start Grabbing fail! :" << ret_start << std::endl;
+        printerror("Start Grabbing", nRet);
         return false;
     }
     return true;
@@ -226,12 +242,19 @@ bool Camera::start_grab()
 
 bool Camera::getframe(cv::Mat& frame)
 {
+    int nRet = MV_OK;
     if (!check())return false;
     MV_FRAME_OUT photo_frame = {0};
-    int ret_buffer = MV_CC_GetImageBuffer(m_handle, &photo_frame, 1000);
-    if (ret_buffer != MV_OK || photo_frame.pBufAddr == nullptr)
+    nRet = MV_CC_GetImageBuffer(m_handle, &photo_frame, 1000);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Get Image fail! " << std::endl;
+        printerror("GetImageBuffer", nRet);
+        return false;
+    }
+    if (photo_frame.pBufAddr == nullptr)
+    {
+        std::cerr << "[GetImageBuffer] Returned null buffer." << std::endl;
+        MV_CC_FreeImageBuffer(m_handle, &photo_frame); // 必须还回去！
         return false;
     }
     // 将获取的图像数据转换为OpenCV的Mat格式
@@ -245,17 +268,49 @@ bool Camera::getframe(cv::Mat& frame)
 
 void Camera::close()
 {
-    if (!check())return;
-    int ret_stop = MV_CC_StopGrabbing(m_handle);
-    if (ret_stop != MV_OK)
+    int nRet = MV_OK;
+    if (m_handle == nullptr) return; 
+    nRet = MV_CC_StopGrabbing(m_handle);
+    if (nRet != MV_OK)
     {
-        std::cerr << "Stop Grabbing fail! :" << ret_stop << std::endl;
+        printerror(" Stop Grabbing", nRet);
+        nRet = MV_OK;
     }
-    int ret_close = MV_CC_CloseDevice(m_handle);
-    if (ret_close != MV_OK)
-    {
-        std::cerr << "Close Device fail! :" << ret_close << std::endl;
-    }
+    nRet = MV_CC_CloseDevice(m_handle);
+    if (nRet != MV_OK)printerror("Close Device", nRet);
     close_handle();
     m_is_open = false;
+}
+
+void Camera::printerror(const std::string& step, int nRet)
+{
+    std::cerr << "[" << step << "] Failed! Ret: 0x" 
+              << std::hex << nRet << std::dec;
+              
+    // 根据海康的错误码进行翻译
+    switch (nRet)
+    {
+        case MV_E_HANDLE:
+            std::cerr << " (Invalid handle or Error handle)";
+            break;
+        case MV_E_NODATA:
+            std::cerr << " (No data available)";
+            break;
+        case MV_E_ACCESS_DENIED:
+            std::cerr << " (Device is not accessible or occupied)";
+            break;
+        case MV_E_CALLORDER:
+            std::cerr << " (Function call order error)";
+            break;
+        case MV_E_PARAMETER:
+            std::cerr << " (Invalid parameter)";
+            break;
+        case MV_E_RESOURCE:
+            std::cerr << " (Resource allocation failed)";
+            break;
+        default:
+            std::cerr << " (Unknown error, see error code)";
+            break;
+    }
+    std::cerr << std::endl;
 }
