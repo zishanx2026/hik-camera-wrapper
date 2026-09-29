@@ -4,26 +4,38 @@
 
 int main()
 {
+    int ret_initial = MV_CC_Initialize();
+    if (ret_initial != MV_OK)
+    {
+        std::cout << "initialize fail" << std::endl;
+        return -1;
+    }
     Camera cam;
-    if (!cam.open(0))
+    if (!cam.scan())
+    {
+        std::cout << "Failed to scan." << std::endl;
+        return -1;
+    }
+    if (!cam.connect())
     {
         std::cout << "Failed to open camera." << std::endl;
         return -1;
     }
-    std::cout << "Open 成功，准备取图" << std::endl;
-    // 设置初始参数
-    int error_set = 0;
+    cam.set_optimal_packet_size();
+    cam.set_triggermode();
+    cam.set_pixelformat();
+    cam.start_grab();
     // 如果开启了自动曝光那么手动曝光就会失效
     std::cout << "是否开启自动曝光?  answer:true or false ." << std::endl;
     bool able = false;
     std::cin >> able;
     float exposure_time = 5000;
-    if (able == true )cam.set_auto_exposure(able, error_set);
+    if (able == true )cam.set_auto_exposure(able);
     else
     {
         std::cout << "请输入自定义曝光时间：（毫秒）" << std::endl;
         std::cin >> exposure_time;
-        cam.set_exposure_time(exposure_time, error_set);
+        cam.set_exposure_time(exposure_time);
     }
     std::cout << "是否开启增益？ answer:true or false ." << std::endl;
     bool gain_current = false;
@@ -33,41 +45,61 @@ int main()
         std::cout << "输入增益值：" << std::endl;
         float gain_db;
         std::cin >> gain_db;
-        cam.set_gain(gain_db, error_set);
+        cam.set_gain(gain_db);
     }
     std::cout << "是否开启白平衡？ answer:true or false ." << std::endl;
     bool enable = false;
     std::cin  >> enable;
-    if (able == true )cam.set_white_balance_auto(enable, error_set);
+    if (enable == true )cam.set_white_balance_auto(enable);
     // 循环获取图像并显示
     while (true)
     {
-        int error_code = 0;
         cv::Mat frame;
-        if (cam.getframe(frame, error_code))
+        if (cam.getframe(frame))
         {
             cv::imshow("Camera", frame);
             
         }
         else
         {
-            std::cout << "Failed to get frame. Error code: " << error_code << std::endl;
-        } 
+            std::cout << "Failed to get frame."<< std::endl;
+            cam.close();
+            cv::waitKey(500);
+            //  重新扫描并连接
+            if (cam.scan() && cam.connect()) 
+            {
+                // 4. 重新配置参数并开始采集
+                cam.set_optimal_packet_size();
+                cam.set_triggermode();
+                cam.set_pixelformat();
+                cam.start_grab();
+                std::cout << "Reconnected successfully!" << std::endl;
+            }
+            else
+            {
+                std::cerr << "Reconnect failed, retrying..." << std::endl;
+            }
+            // 5. 跳过本次循环，直接进入下一轮取图
+            continue; 
+        }
+
+        // 按键交互
         int key = cv::waitKey(1);
-        if (key == 'q')break;
+        if (key == 'q') break;
         else if (key == '+')
         {
             exposure_time += 5000;
-            cam.set_exposure_time(exposure_time, error_code);
+            cam.set_exposure_time(exposure_time);
             std::cout << "当前曝光： " << exposure_time << std::endl;
         }
         else if (key == '-')
         {
-            exposure_time -= 5000; 
-            cam.set_exposure_time(exposure_time, error_code);
+            exposure_time -= 5000;
+            cam.set_exposure_time(exposure_time);
             std::cout << "当前曝光： " << exposure_time << std::endl;
         }
     }
     cam.close();
+    MV_CC_Finalize();
     return 0;
 }
